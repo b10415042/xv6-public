@@ -55,9 +55,19 @@ void            cupdate(struct inode *, struct inode *);
 int             namecmp(const char*, const char*);
 struct inode*   namei(char*);
 struct inode*   nameiparent(char*, char*);
+//新增namei_ext等4
+struct inode*	namei_ext(char*, int);
+struct inode*	nameiparent_ext(char*, char*, int);
+struct inode*	namei_trans(char*);
+struct inode*	nameiparent_trans(char*, char*);
 int             readi(struct inode*, char*, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, char*, uint, uint);
+//新增writei_ext
+int				writei_ext(struct inode*, char*, uint, uint, uint);
+//新增distance_to_root
+int				distance_to_root(char * path);
+
 
 // ide.c
 void            ideinit(void);
