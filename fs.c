@@ -719,25 +719,12 @@ readi(struct inode *ip, char *dst, uint off, uint n)
 
 // PAGEBREAK!
 // Write data to inode.
-//這個函式修改過了
+// Caller must hold ip->lock.
 int
-writei (struct inode *ip, char *src, uint off, uint n)
-{
-  return writei_ext(ip, src, off, n, 0);
-}
-
-
-// Extensible version of writei which, when the skip flag is set,
-//   overrides writing to the children of an inode.
-//這個函式是新增的
-int
-writei_ext(struct inode *ip, char *src, uint off, uint n, uint skip)
+writei(struct inode *ip, char *src, uint off, uint n)
 {
   uint tot, m;
   struct buf *bp;
-  char *_src = src;
-  uint _off = off;
-
 
   if(ip->type == T_DEV){
     if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write)
@@ -757,36 +744,11 @@ writei_ext(struct inode *ip, char *src, uint off, uint n, uint skip)
     log_write(bp);
     brelse(bp);
   }
-  // Update ditto blocks
-  struct inode *ci;
 
-  if (skip == 0) {
-    if (ip->child1) {
-      ci = iget(ip->dev, ip->child1);
-      ilock_ext(ci, 0);
-      writei(ci, _src, _off, n);
-      iunlock(ci);
-    }
-
-    if (ip->child2) {
-      ci = iget(ip->dev, ip->child2);
-      ilock_ext(ci, 0);
-      writei(ci, _src, _off, n);
-      iunlock(ci);
-    }
-  }
-
-  // For ditto blocks, the parent iupdate call takes care of updating it
-  if (ip->type == T_DITTO)
-    return n;
-
-  // An alternative is to do ip->type != T_DEV
-  if (n > 0 && off > ip->size)
+  if(n > 0 && off > ip->size){
     ip->size = off;
-
-  if (ip->type != T_DEV)
-    iupdate_ext(ip, skip);
-
+    iupdate(ip);
+  }
   return n;
 }
 
@@ -902,7 +864,7 @@ skipelem(char *path, char *name)
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
 static struct inode*
-namex(char *path, int nameiparent, char *name, int trans)
+namex(char *path, int nameiparent, char *name)
 {
   struct inode *ip, *next;
 
@@ -912,12 +874,7 @@ namex(char *path, int nameiparent, char *name, int trans)
     ip = idup(myproc()->cwd);
 
   while((path = skipelem(path, name)) != 0){
-	  if (trans) {
-      if (ilock_trans(ip) != 0) return 0; // Failed to recover and lock
-    } else {
-      if (ilock(ip) != 0) return 0; // Failed to lock
-    }
-
+    ilock(ip);
     if(ip->type != T_DIR){
       iunlockput(ip);
       return 0;
@@ -942,64 +899,14 @@ namex(char *path, int nameiparent, char *name, int trans)
 }
 
 struct inode*
-namei_ext(char *path, int trans)
-{
-  char name[DIRSIZ];
-  return namex(path, 0, name, trans);
-}
-
-struct inode*
-nameiparent_ext(char *path, char *name, int trans)
-{
-  return namex(path, 1, name, trans);
-}
-
-struct inode*
 namei(char *path)
 {
-  return namei_ext(path, 0);
+  char name[DIRSIZ];
+  return namex(path, 0, name);
 }
 
 struct inode*
 nameiparent(char *path, char *name)
 {
-  return nameiparent_ext(path, name, 0);
-}
-
-struct inode*
-namei_trans(char *path)
-{
-  return namei_ext(path, 1);
-}
-
-struct inode*
-nameiparent_trans(char *path, char *name)
-{
-  return nameiparent_ext(path, name, 1);
-}
-
-int
-distance_to_root(char *path){
-    char name[DIRSIZ];
-    struct inode *dp, *ip;
-    uint inum1,inum2;
-    uint off;
-    dp = nameiparent_ext(path, name, 1);
-    ilock_trans(dp);
-    int counter = 1;
-    while((ip = dirlookup(dp,"..", &off) ) != 0){
-	inum1 = dp->inum;
-	iunlockput(dp);
-	dp = ip;
-	ilock_trans(dp);
-	inum2 = dp->inum;
-	//If this is the root.
-	if(inum1 == inum2){
-	    iunlockput(dp);
-	    break;
-	}
-	counter++;
-	off = 0;
-    }
-    return counter;
+  return namex(path, 1, name);
 }
