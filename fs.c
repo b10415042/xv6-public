@@ -957,7 +957,7 @@ nameiparent_ext(char *path, char *name, int trans)
 struct inode*
 namei(char *path)
 {
-  return namei_ext(path, name, 0);
+  return namei_ext(path, 0);
 }
 
 struct inode*
