@@ -314,6 +314,7 @@ void iupdate_ext(struct inode *ip, uint skip)
   /* if (ip->checksum != dip->checksum)
     cprintf("	[I] updating checksum of inode %d from %x to %x.\n", ip->inum, dip->checksum, ip->checksum); // */
   
+  dip->checksum = ip->checksum;
   memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
   log_write(bp);
   brelse(bp);
@@ -686,6 +687,10 @@ stati(struct inode *ip, struct stat *st)
   st->type = ip->type;
   st->nlink = ip->nlink;
   st->size = ip->size;
+
+  st->child1 = ip->child1;
+	st->child2 = ip->child2;
+	st->checksum = ip->checksum;
 }
 
 //PAGEBREAK!
