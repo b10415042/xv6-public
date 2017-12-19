@@ -24,6 +24,7 @@ struct inode {
   uint size;
   uint addrs[NDIRECT+1];
 
+  // zv6新增的
   short child1;
   short child2;
   uint checksum;

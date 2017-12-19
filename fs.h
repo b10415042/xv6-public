@@ -21,7 +21,7 @@ struct superblock {
   uint bmapstart;    // Block number of first free map block
 };
 
-#define NDIRECT 10
+#define NDIRECT 10  // 由12改為10
 #define NINDIRECT (BSIZE / sizeof(uint))
 #define MAXFILE (NDIRECT + NINDIRECT)
 
@@ -63,6 +63,7 @@ struct dirent {
 #define DITTO_LOWER 3
 #define DITTO_HIGHER 6
 
+// Ditto Block Replica
 enum
 {
   REPLICA_SELF,
