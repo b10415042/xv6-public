@@ -688,6 +688,9 @@ stati(struct inode *ip, struct stat *st)
   st->nlink = ip->nlink;
   st->size = ip->size;
 
+  st->child1 = ip->child1;
+	st->child2 = ip->child2;
+	st->checksum = ip->checksum;
 }
 
 //PAGEBREAK!
