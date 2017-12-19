@@ -48,7 +48,7 @@ struct log {
 struct log log;
 
 static void recover_from_log(void);
-static void commit();
+void commit();
 
 void
 initlog(int dev)
@@ -189,7 +189,7 @@ write_log(void)
   }
 }
 
-static void
+void
 commit()
 {
   if (log.lh.n > 0) {

@@ -149,6 +149,7 @@ _forktest: forktest.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _forktest forktest.o ulib.o usys.o
 	$(OBJDUMP) -S _forktest > forktest.asm
 
+ 
 mkfs: mkfs.c fs.h
 	gcc -Werror -Wall -o mkfs mkfs.c
 
@@ -173,9 +174,14 @@ UPROGS=\
 	_stressfs\
 	_usertests\
 	_wc\
+	_ps\
 	_zombie\
+	_pinode\
+	_pchecksum\
+	_pcat\
+	_idesignate\
 
-fs.img: mkfs README $(UPROGS)
+fs.img: mkfs README $(UPROGS) 
 	./mkfs fs.img README $(UPROGS)
 
 -include *.d
@@ -242,7 +248,7 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
-	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
+	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c ps.c zombie.c\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\

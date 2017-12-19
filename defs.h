@@ -101,6 +101,8 @@ void            microdelay(int);
 void            initlog(int dev);
 void            log_write(struct buf*);
 void            begin_op();
+void            commit();
+int     		is_log_busy();
 void            end_op();
 
 // mp.c
@@ -136,7 +138,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-
+int             cps(void);
 // swtch.S
 void            swtch(struct context**, struct context*);
 

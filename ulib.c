@@ -103,3 +103,17 @@ memmove(void *vdst, void *vsrc, int n)
     *dst++ = *src++;
   return vdst;
 }
+int
+hasdittos(char * path){
+    int fd;
+    fd = forceopen(path, O_RDONLY);
+    struct stat st;
+    fstat(fd, &st);
+    close(fd);
+    if(st.child1){
+	return 1;
+    }
+    else{
+	return 0;
+    }
+}

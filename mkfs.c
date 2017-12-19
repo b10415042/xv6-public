@@ -40,7 +40,11 @@ void rinode(uint inum, struct dinode *ip);
 void rsect(uint sec, void *buf);
 uint ialloc(ushort type);
 void iappend(uint inum, void *p, int n);
-
+void rblock(struct dinode *din, uint bn, char *dst);
+/*uint ichecksum(struct dinode *din);
+void rblock(struct dinode *din, uint bn, char * dst);
+int readi(struct dinode *din, char * dst, uint off, uint n);
+void copy_dinode_content(struct dinode *src, uint dst);*/
 // convert to intel byte order
 ushort
 xshort(ushort x)
@@ -179,6 +183,11 @@ wsect(uint sec, void *buf)
     exit(1);
   }
 }
+uint
+i2b(uint inum)
+{
+	return (inum / IPB) + 2;
+}
 
 void
 winode(uint inum, struct dinode *ip)
@@ -294,4 +303,87 @@ iappend(uint inum, void *xp, int n)
   }
   din.size = xint(off);
   winode(inum, &din);
+}
+int
+readi(struct dinode *din, char *dst, uint off, uint n) {
+	uint tot, m, fbn;
+	char data[BSIZE];
+	char *cdata = (char *)data;
+
+	if (xint(din->type) == T_DEV) {
+		fprintf(stderr, "Reading DEV file. Not implemented in readi in mkfs\n");
+		return -1;
+	}
+	if (off > xint(din->size) || off + n < off) {
+		return -1;
+	}
+	if (off + n > xint(din->size)) {
+		n = xint(din->size) - off;
+	}
+
+	for (tot = 0; tot < n; tot += m, off += m, dst += m) {
+		fbn = off / BSIZE;
+		rblock(din, fbn, (char*)data);
+		m = min(n - tot, BSIZE - off%BSIZE);
+		memmove(dst, cdata + off%BSIZE, m);
+	}
+	return n;
+}
+
+void
+rblock(struct dinode *din, uint bn, char *dst) {
+	uint indirect[NINDIRECT];
+	uint addr;
+	if (bn < NDIRECT) {
+		rsect(xint(din->addrs[bn]), dst);
+		return;
+	}
+	bn -= NDIRECT;
+
+	if (bn < NINDIRECT) {
+		rsect(xint(din->addrs[NDIRECT]), (char*)indirect);
+		addr = xint(indirect[bn]);
+		rsect(addr, dst);
+		return;
+	}
+}
+
+uint
+ichecksum(struct dinode *din) {
+	unsigned int buf[512];
+	char *cbuf = (char *)buf;
+	uint n = sizeof(buf);
+	uint off = 0;
+	uint r, i;
+	unsigned int checksum = 0;
+	memset((void *)cbuf, 0, n);
+	unsigned int * bp;
+
+	while ((r = readi(din, cbuf, off, n)) > 0) {
+		off += r;
+		bp = (unsigned int *)buf;
+		for (i = 0; i < sizeof(buf) / sizeof(uint); i++) {
+			checksum ^= *bp;
+			bp++;
+		}
+		memset((void *)cbuf, 0, n);
+	}
+
+	return checksum;
+}
+
+void
+copy_dinode_content(struct dinode *src, uint dst) {
+	char buf[512];
+	char *cbuf = (char *)buf;
+	uint n = sizeof(buf);
+	uint off = 0;
+	uint r;
+	memset((void *)cbuf, 0, n);
+
+	while ((r = readi(src, cbuf, off, n)) > 0) {
+		off += r;
+		iappend(dst, cbuf, r);
+		memset((void *)cbuf, 0, n);
+	}
 }
