@@ -13,7 +13,7 @@
 
 #ifndef static_assert
 #define static_assert(a, b) do { switch (0) case 0: case (a): ; } while (0)
-#endif	
+#endif
 
 #define NINODES 200
 
@@ -25,14 +25,11 @@ int ninodeblocks = NINODES / IPB + 1;
 int nlog = LOGSIZE;
 int nmeta;    // Number of meta blocks (boot, sb, nlog, inode, bitmap)
 int nblocks;  // Number of data blocks
-int size =2048;
 
 int fsfd;
 struct superblock sb;
 char zeroes[BSIZE];
 uint freeinode = 1;
-uint usedblocks;
-uint bitblocks;
 uint freeblock;
 
 
@@ -43,11 +40,11 @@ void rinode(uint inum, struct dinode *ip);
 void rsect(uint sec, void *buf);
 uint ialloc(ushort type);
 void iappend(uint inum, void *p, int n);
-void rblock(struct dinode *din, uint bn, char *dst);
 uint ichecksum(struct dinode *din);
 void rblock(struct dinode *din, uint bn, char * dst);
 int readi(struct dinode *din, char * dst, uint off, uint n);
 void copy_dinode_content(struct dinode *src, uint dst);
+
 // convert to intel byte order
 ushort
 xshort(ushort x)
@@ -78,9 +75,8 @@ main(int argc, char *argv[])
   uint rootino, inum, off;
   struct dirent de;
   char buf[BSIZE];
-  struct dinode din ,din2;
+  struct dinode din, din2;
   unsigned int checksum;
-
 
   static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
 
@@ -106,15 +102,14 @@ main(int argc, char *argv[])
   sb.nblocks = xint(nblocks);
   sb.ninodes = xint(NINODES);
   sb.nlog = xint(nlog);
+  sb.logstart = xint(2);
+  sb.inodestart = xint(2+nlog);
+  sb.bmapstart = xint(2+nlog+ninodeblocks);
 
-  bitblocks = size/(512*8) + 1;
-  usedblocks = NINODES / IPB + 3 + bitblocks;
-  freeblock = usedblocks;
-  printf("used %d (bit %d ninode %zu) free %u log %u total %d\n", usedblocks,
-       bitblocks, NINODES/IPB + 1, freeblock, nlog, nblocks+usedblocks+nlog);
- 
+  printf("nmeta %d (boot, super, log blocks %u inode blocks %u, bitmap blocks %u) blocks %d total %d\n",
+         nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
 
-  assert(nblocks + usedblocks + nlog == size);
+  freeblock = nmeta;     // the first free block that we can allocate
 
   for(i = 0; i < FSSIZE; i++)
     wsect(i, zeroes);
@@ -136,61 +131,65 @@ main(int argc, char *argv[])
   strcpy(de.name, "..");
   iappend(rootino, &de, sizeof(de));
 
-  for (i = 2; i < argc; i++) {
-	  assert(index(argv[i], '/') == 0);
+  for(i = 2; i < argc; i++){
+    assert(index(argv[i], '/') == 0);
 
-	  if ((fd = open(argv[i], 0)) < 0) {
-		  perror(argv[i]);
-		  exit(1);
-	  }
+    if((fd = open(argv[i], 0)) < 0){
+      perror(argv[i]);
+      exit(1);
+    }
 
-	  // Skip leading _ in name when writing to file system.
-	  // The binaries are named _rm, _cat, etc. to keep the
-	  // build operating system from trying to execute them
-	  // in place of system binaries like rm and cat.
-	  if (argv[i][0] == '_')
-		  ++argv[i];
+    // Skip leading _ in name when writing to file system.
+    // The binaries are named _rm, _cat, etc. to keep the
+    // build operating system from trying to execute them
+    // in place of system binaries like rm and cat.
+    if(argv[i][0] == '_')
+      ++argv[i];
 
-	  inum = ialloc(T_FILE);
+    inum = ialloc(T_FILE);
 
-	  bzero(&de, sizeof(de));
-	  de.inum = xshort(inum);
-	  strncpy(de.name, argv[i], DIRSIZ);
-	  iappend(rootino, &de, sizeof(de));
+    bzero(&de, sizeof(de));
+    de.inum = xshort(inum);
+    strncpy(de.name, argv[i], DIRSIZ);
+    iappend(rootino, &de, sizeof(de));
+    
+    checksum = 0;
+    //fprintf(stderr, "Name of file: %s \n", argv[i]);
+    int counter2 = 0;
+    char * cbuf = (char * )buf;
+    memset((void *) cbuf,0,sizeof(buf));
 
-	  checksum = 0;
-	  //fprintf(stderr, "Name of file: %s \n", argv[i]);
-	  int counter2 = 0;
-	  char * cbuf = (char *)buf;
-	  memset((void *)cbuf, 0, sizeof(buf));
-	  while ((cc = read(fd, buf, sizeof(buf))) > 0) {
-		  counter2 += cc;
-		  uint i;
-		  unsigned int * bp = (unsigned int *)buf;
-		  char * cbuf = (char *)buf;
-		  memset((void *)cbuf + cc, 0, sizeof(buf) - cc);
-		  for (i = 0; i < sizeof(buf) / sizeof(uint); i++) {
-			  checksum ^= *bp;
-			  bp++;
-		  }
-		  iappend(inum, buf, cc);
-	  }
-	  //fprintf(stderr, "Size of the file: %s is %d bytes \n",argv[i],counter2);
-		 //fprintf(stderr, "Checksum from fd: %x \n", checksum);
-		   //Read Inode we just wrote to
-		   //update its checksum
-	  rinode(inum, &din2);
-	  char temp_buf[BSIZE];
-	  readi(&din2, (char*)temp_buf, 0, BSIZE);
-	  unsigned int checksum2 = 0;
-	  checksum2 = ichecksum(&din2);
-	  //fprintf(stderr,"INODE: %d Checksum computed through ichecksum: %x \n", inum, checksum2);
-	  din2.checksum = xint(checksum2);
-	  winode(inum, &din2);
+    while((cc = read(fd, buf, sizeof(buf))) > 0){
+      counter2 += cc;
+      uint i;
+      unsigned int * bp = (unsigned int *)buf;
+      char * cbuf = (char * )buf;
+      memset((void *) cbuf + cc,0,sizeof(buf) - cc); 
+      for(i = 0; i < sizeof(buf)/sizeof(uint); i++){
+	      checksum ^= *bp;
+	      bp++;
+      }
+      iappend(inum, buf, cc);
+    }
 
-	  close(fd);
+    //fprintf(stderr, "Size of the file: %s is %d bytes \n",argv[i],counter2);
+    //fprintf(stderr, "Checksum from fd: %x \n", checksum);
+    //Read Inode we just wrote to
+    //update its checksum
+    rinode(inum, &din2);
+    char temp_buf[BSIZE];
+    readi(&din2,(char*)temp_buf,0,BSIZE);
+    unsigned int checksum2 = 0;
+    checksum2 = ichecksum(&din2);
+    //fprintf(stderr,"INODE: %d Checksum computed through ichecksum: %x \n", inum, checksum2);
+    din2.checksum = xint(checksum2);
+    winode(inum, &din2);
+
+    close(fd);
   }
+
   // fix size of root inode dir
+  // also have to fix the checksum
   rinode(rootino, &din);
   off = xint(din.size);
   off = ((off/BSIZE) + 1) * BSIZE;
@@ -199,21 +198,20 @@ main(int argc, char *argv[])
   din.checksum = xint(checksum);
   winode(rootino, &din);
 
-
+  //Create ditto blocks for root directory
   rinode(rootino, &din);
   uint ditto_inum1, ditto_inum2;
   struct dinode ditto_din1, ditto_din2;
   ditto_inum1 = ialloc(T_DITTO);
   ditto_inum2 = ialloc(T_DITTO);
 
-
-	copy_dinode_content(&din, ditto_inum1);
-	rinode(ditto_inum1, &ditto_din1);
+  copy_dinode_content(&din,ditto_inum1);
+  rinode(ditto_inum1, &ditto_din1);
   ditto_din1.checksum = din.checksum;
   ditto_din1.size = din.size;
   winode(ditto_inum1, &ditto_din1);
-  
-  copy_dinode_content(&din, ditto_inum2);
+
+  copy_dinode_content(&din,ditto_inum2);
   rinode(ditto_inum2, &ditto_din2);
   ditto_din2.checksum = din.checksum;
   ditto_din2.size = din.size;
@@ -224,7 +222,9 @@ main(int argc, char *argv[])
   din.child1 = xshort(ditto_inum1);
   din.child2 = xshort(ditto_inum2);
   winode(rootino, &din);
-
+  
+  // fprintf(stderr, "=======> JOAO: root inode checksum %x \n",xint(din.checksum));
+  //writes the bitmap to fs.img
   balloc(freeblock);
 
   exit(0);
@@ -242,11 +242,6 @@ wsect(uint sec, void *buf)
     exit(1);
   }
 }
-uint
-i2b(uint inum)
-{
-	return (inum / IPB) + 2;
-}
 
 void
 winode(uint inum, struct dinode *ip)
@@ -255,7 +250,7 @@ winode(uint inum, struct dinode *ip)
   uint bn;
   struct dinode *dip;
 
-  bn = i2b(inum);
+  bn = IBLOCK(inum, sb);
   rsect(bn, buf);
   dip = ((struct dinode*)buf) + (inum % IPB);
   *dip = *ip;
@@ -269,7 +264,7 @@ rinode(uint inum, struct dinode *ip)
   uint bn;
   struct dinode *dip;
 
-  bn = i2b(inum);
+  bn = IBLOCK(inum, sb);
   rsect(bn, buf);
   dip = ((struct dinode*)buf) + (inum % IPB);
   *ip = *dip;
@@ -314,8 +309,8 @@ balloc(int used)
   for(i = 0; i < used; i++){
     buf[i/8] = buf[i/8] | (0x1 << (i%8));
   }
-  printf("balloc: write bitmap block at sector %d\n", NINODES/IPB+3);
-  wsect(NINODES / IPB + 3, buf);
+  printf("balloc: write bitmap block at sector %d\n", sb.bmapstart);
+  wsect(sb.bmapstart, buf);
 }
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
@@ -339,7 +334,6 @@ iappend(uint inum, void *xp, int n)
     if(fbn < NDIRECT){
       if(xint(din.addrs[fbn]) == 0){
         din.addrs[fbn] = xint(freeblock++);
-        usedblocks++;
       }
       x = xint(din.addrs[fbn]);
     } else {
@@ -364,86 +358,86 @@ iappend(uint inum, void *xp, int n)
   din.size = xint(off);
   winode(inum, &din);
 }
-int
-readi(struct dinode *din, char *dst, uint off, uint n) {
-	uint tot, m, fbn;
-	char data[BSIZE];
-	char *cdata = (char *)data;
+int 
+readi(struct dinode *din, char *dst, uint off, uint n){
+    uint tot, m, fbn;
+    char data[BSIZE];
+    char *cdata = (char *)data;
 
-	if (xint(din->type) == T_DEV) {
-		fprintf(stderr, "Reading DEV file. Not implemented in readi in mkfs\n");
-		return -1;
-	}
-	if (off > xint(din->size) || off + n < off) {
-		return -1;
-	}
-	if (off + n > xint(din->size)) {
-		n = xint(din->size) - off;
-	}
+    if(xint(din->type) == T_DEV){
+	fprintf(stderr, "Reading DEV file. Not implemented in readi in mkfs\n");
+	return -1;
+    }
+    if(off > xint(din->size) || off + n < off){
+	return -1;
+    }
+    if(off + n > xint(din->size)){
+	n = xint(din->size) - off;
+    }
 
-	for (tot = 0; tot < n; tot += m, off += m, dst += m) {
-		fbn = off / BSIZE;
-		rblock(din, fbn, (char*)data);
-		m = min(n - tot, BSIZE - off%BSIZE);
-		memmove(dst, cdata + off%BSIZE, m);
-	}
-	return n;
+    for(tot = 0; tot < n;tot +=m, off+=m, dst+=m){
+	fbn = off / BSIZE;
+	rblock(din, fbn, (char*)data);
+	m = min(n - tot, BSIZE - off%BSIZE);
+	memmove(dst, cdata + off%BSIZE, m);
+    }
+    return n;
 }
 
-void
-rblock(struct dinode *din, uint bn, char *dst) {
-	uint indirect[NINDIRECT];
-	uint addr;
-	if (bn < NDIRECT) {
-		rsect(xint(din->addrs[bn]), dst);
-		return;
-	}
-	bn -= NDIRECT;
+void 
+rblock(struct dinode *din, uint bn, char *dst){
+    uint indirect[NINDIRECT];
+    uint addr;
+    if(bn < NDIRECT){
+	rsect(xint(din->addrs[bn]), dst);
+	return;
+    }
+    bn -= NDIRECT;
 
-	if (bn < NINDIRECT) {
-		rsect(xint(din->addrs[NDIRECT]), (char*)indirect);
-		addr = xint(indirect[bn]);
-		rsect(addr, dst);
-		return;
-	}
+    if(bn < NINDIRECT){
+	rsect(xint(din->addrs[NDIRECT]), (char*)indirect);	
+	addr = xint(indirect[bn]);
+	rsect(addr, dst);
+	return;
+    }
 }
 
 uint
-ichecksum(struct dinode *din) {
-	unsigned int buf[512];
-	char *cbuf = (char *)buf;
-	uint n = sizeof(buf);
-	uint off = 0;
-	uint r, i;
-	unsigned int checksum = 0;
-	memset((void *)cbuf, 0, n);
-	unsigned int * bp;
+ichecksum(struct dinode *din){
+    unsigned int buf[512];
+    char *cbuf = (char *) buf;
+    uint n = sizeof(buf);
+    uint off = 0;
+    uint r, i;
+    unsigned int checksum = 0;
+    memset((void *) cbuf,0,n); 
+    unsigned int * bp;
 
-	while ((r = readi(din, cbuf, off, n)) > 0) {
-		off += r;
-		bp = (unsigned int *)buf;
-		for (i = 0; i < sizeof(buf) / sizeof(uint); i++) {
-			checksum ^= *bp;
-			bp++;
-		}
-		memset((void *)cbuf, 0, n);
+    while((r = readi(din, cbuf,off,n)) > 0){
+	off += r;
+	bp = (unsigned int *)buf;
+	for(i = 0; i < sizeof(buf) / sizeof(uint); i++){ 
+	    checksum ^= *bp;
+	    bp++;
 	}
+	memset((void *) cbuf,0,n); 
+    }
 
-	return checksum;
+    return checksum;
 }
 
 void
-copy_dinode_content(struct dinode *src, uint dst) {
-	char buf[512];
-	char *cbuf = (char *)buf;
-	uint n = sizeof(buf);
-	uint off = 0;
-	uint r;
-	memset((void *)cbuf, 0, n);
+copy_dinode_content(struct dinode *src, uint dst){
+    char buf[512];
+    char *cbuf = (char *) buf;
+    uint n = sizeof(buf);
+    uint off = 0;
+    uint r;
+    memset((void *) cbuf,0,n); 
 
-	while ((r = readi(src, cbuf, off, n)) > 0) {
-		off += r;
-		iappend(dst, cbuf, r);
-		memset((void *)cbuf, 0, n);
-	}
+    while((r = readi(src, cbuf,off,n)) > 0){
+	off += r;
+	iappend(dst, cbuf, r);
+	memset((void *) cbuf,0,n); 
+    }
 }
