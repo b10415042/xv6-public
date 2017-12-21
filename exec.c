@@ -27,7 +27,6 @@ exec(char *path, char **argv)
     cprintf("exec: fail\n");
     return -1;
   }
-  ilock(ip);
 
   if (ilock_trans(ip))
     return E_CORRUPTED;
