@@ -199,6 +199,13 @@ commit()
     log.lh.n = 0;
     write_head();    // Erase the transaction from the log
   }
+/*
+    acquire(&log.lock);
+    log.committing = 0;
+    wakeup(&log);
+    release(&log.lock);
+    */
+    //???
 }
 
 // Caller has modified b->data and is done with the buffer.

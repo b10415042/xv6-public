@@ -125,7 +125,6 @@ sys_link(void)
   if(argstr(0, &old) < 0 || argstr(1, &new) < 0)
     return -1;
 
-  begin_op();
   if((ip = namei_trans(old)) == 0){
     return -1;
   }
@@ -238,13 +237,13 @@ sys_unlink(void)
   iupdate(ip);
   iunlockput(ip);
 
-  end_op();
+  commit();//原end op
 
   return 0;
 
 bad:
   iunlockput(dp);
-  end_op();
+  commit();//原end op
   return -1;
 }
 
@@ -530,11 +529,11 @@ sys_mkdir(void)
 
   begin_op();
   if(argstr(0, &path) < 0 || (ip = create(path, T_DIR, 0, 0)) == 0){
-    end_op();
+    commit();//原end op
     return -1;
   }
   iunlockput(ip);
-  end_op();
+  commit();//原end op
   return 0;
 }
 
