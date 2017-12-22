@@ -277,7 +277,7 @@ create(char *path, short type, short major, short minor)
   ip->major = major;
   ip->minor = minor;
   ip->nlink = 1;
-  iupdate(ip);
+
   if(type == T_DIR && dtr < DITTO_HIGHER){//Create DITTO inodes
      struct inode *child1, *child2;
      if(dtr < DITTO_LOWER){//close to root, create 2 dittos
@@ -403,9 +403,9 @@ sys_open(void)
 
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
-    begin_op();//maybe have problem
-  if(omode & O_CREATE){
 
+  begin_op(); //maybe have problem
+  if(omode & O_CREATE){
     ip = create(path, T_FILE, 1, 0);
     if(ip == 0)
     {
@@ -432,9 +432,11 @@ sys_open(void)
     if(f)
       fileclose(f);
     iunlockput(ip);
+    end_op();
     return -1;
   }
   iunlock(ip);
+  end_op();
 
   f->type = FD_INODE;
   f->ip = ip;
@@ -455,20 +457,26 @@ sys_forceopen(void)
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
 
-	if(omode & O_CREATE){
-    begin_op();
+  begin_op(); //maybe have problem
+  if(omode & O_CREATE){
     ip = create(path, T_FILE, 1, 0);
-    commit();
     if(ip == 0)
+    {
+      end_op();
       return -1;
+    }
   } else {
     if((ip = namei_trans(path)) == 0)
+    {
+      end_op();
       return -1;
-
-	ilock_ext(ip, 0);
+    }
+    
+    ilock_ext(ip, 0);
 
     if(ip->type == T_DIR && omode != O_RDONLY){
       iunlockput(ip);
+      end_op();
       return -1;
     }
   }
@@ -477,9 +485,11 @@ sys_forceopen(void)
     if(f)
       fileclose(f);
     iunlockput(ip);
+    end_op();
     return -1;
   }
   iunlock(ip);
+  end_op();
 
   f->type = FD_INODE;
   f->ip = ip;
@@ -488,6 +498,7 @@ sys_forceopen(void)
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
   return fd;
 }
+
 
 int
 sys_iopen(void)
@@ -516,10 +527,11 @@ sys_iopen(void)
     if(f)
       fileclose(f);
     iunlockput(ip);
+    end_op();
     return -3;
   }
-
   iunlock(ip);
+  end_op();
 
   f->type = FD_INODE;
   f->ip = ip;
@@ -550,11 +562,10 @@ sys_mknod(void)
 {
   struct inode *ip;
   char *path;
-  int len;
   int major, minor;
 
   begin_op();
-  if((len=argstr(0, &path)) < 0 ||
+  if((argstr(0, &path)) < 0 ||
      argint(1, &major) < 0 ||
      argint(2, &minor) < 0 ||
      (ip = create(path, T_DEV, major, minor)) == 0){
