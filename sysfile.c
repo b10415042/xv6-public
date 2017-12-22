@@ -124,15 +124,15 @@ sys_link(void)
   int r;
   if(argstr(0, &old) < 0 || argstr(1, &new) < 0)
     return -1;
-
+  begin_op();
   if((ip = namei_trans(old)) == 0){
+    end_op();
     return -1;
   }
   ilock_trans(ip);
-  begin_op();
   if(ip->type == T_DIR){
     iunlockput(ip);
-    commit();
+    end_op();
     return -1;
   }
 
@@ -154,7 +154,7 @@ sys_link(void)
   iunlockput(dp);
   iput(ip);
 
-  commit();
+  end_op();
 
   return 0;
 
@@ -163,7 +163,7 @@ bad:
   ip->nlink--;
   iupdate(ip);
   iunlockput(ip);
-  commit();
+  end_op();
   return -1;
 }
 
@@ -195,10 +195,12 @@ sys_unlink(void)
 
   if(argstr(0, &path) < 0)
     return -1;
-
-  if((dp = nameiparent_trans(path, name)) == 0)		
-	    return -1;
   begin_op();
+  if((dp = nameiparent_trans(path, name)) == 0)
+  {		
+    end_op();
+	    return -1;
+  }
   if ((r = ilock(dp)) < 0) {
      cprintf("ilocked failed with val r = %d.\n", r);
     panic("sys_unlink");
@@ -215,7 +217,7 @@ sys_unlink(void)
     cprintf("ilock failed with val r = %d.\n", r);
     panic("sys_unlink");
   }
-  
+  ilock_trans(ip);
 
   if(ip->nlink < 1)
     panic("unlink: nlink < 1");
@@ -237,13 +239,13 @@ sys_unlink(void)
   iupdate(ip);
   iunlockput(ip);
 
-  commit();//原end op
+  end_op();//原end op
 
   return 0;
 
 bad:
   iunlockput(dp);
-  commit();//原end op
+  end_op();//原end op
   return -1;
 }
 
@@ -275,6 +277,7 @@ create(char *path, short type, short major, short minor)
   ip->major = major;
   ip->minor = minor;
   ip->nlink = 1;
+  iupdate(ip);
   if(type == T_DIR && dtr < DITTO_HIGHER){//Create DITTO inodes
      struct inode *child1, *child2;
      if(dtr < DITTO_LOWER){//close to root, create 2 dittos
@@ -400,22 +403,27 @@ sys_open(void)
 
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
-
+    begin_op();//maybe have problem
   if(omode & O_CREATE){
-    begin_op();
+
     ip = create(path, T_FILE, 1, 0);
-    commit();
     if(ip == 0)
+    {
+      end_op();
       return -1;
+    }
   } else {
     if((ip = namei_trans(path)) == 0)
+    {
+      end_op();
       return -1;
-
+    }
     if (ilock_trans(ip) == E_CORRUPTED)
       return E_CORRUPTED;
 
     if(ip->type == T_DIR && omode != O_RDONLY){
       iunlockput(ip);
+      end_op();
       return -1;
     }
   }
@@ -529,11 +537,11 @@ sys_mkdir(void)
 
   begin_op();
   if(argstr(0, &path) < 0 || (ip = create(path, T_DIR, 0, 0)) == 0){
-    commit();//原end op
+    end_op();//原end op
     return -1;
   }
   iunlockput(ip);
-  commit();//原end op
+  end_op();//原end op
   return 0;
 }
 
@@ -550,11 +558,11 @@ sys_mknod(void)
      argint(1, &major) < 0 ||
      argint(2, &minor) < 0 ||
      (ip = create(path, T_DEV, major, minor)) == 0){
-    commit();
+    end_op();
     return -1;
   }
   iunlockput(ip);
-  commit();
+  end_op();
   return 0;
 }
 
@@ -565,9 +573,13 @@ sys_chdir(void)
   struct inode *ip;
   struct proc *curproc = myproc();
   
+  begin_op();
   if(argstr(0, &path) < 0 || (ip = namei_trans(path)) == 0)
+  {
+    end_op();
     return -1;
-   if (ilock(ip) == E_CORRUPTED)
+  }
+   if (ilock_trans(ip) == E_CORRUPTED)
  		return E_CORRUPTED;
      
   if(ip->type != T_DIR){
@@ -576,6 +588,7 @@ sys_chdir(void)
   }
   iunlock(ip);
   iput(curproc->cwd);
+  end_op();
   curproc->cwd = ip;
   return 0;
 }
