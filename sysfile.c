@@ -15,7 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
-#include "syscall.h"
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 struct inode* iget(uint dev, uint inum);
@@ -239,13 +239,13 @@ sys_unlink(void)
   iupdate(ip);
   iunlockput(ip);
 
-  end_op();//原end op
+  end_op();
 
   return 0;
 
 bad:
   iunlockput(dp);
-  end_op();//原end op
+  end_op();
   return -1;
 }
 
@@ -256,8 +256,8 @@ create(char *path, short type, short major, short minor)
   struct inode *ip, *dp;
   char name[DIRSIZ];
   int dtr;
-   dtr = distance_to_root(path);
-   if((dp = nameiparent_trans(path, name)) == 0)
+  dtr = distance_to_root(path);
+  if((dp = nameiparent_trans(path, name)) == 0)
       return 0;
   ilock(dp);
 
@@ -279,19 +279,19 @@ create(char *path, short type, short major, short minor)
   ip->nlink = 1;
 
   if(type == T_DIR && dtr < DITTO_HIGHER){//Create DITTO inodes
-     struct inode *child1, *child2;
-     if(dtr < DITTO_LOWER){//close to root, create 2 dittos
+    struct inode *child1, *child2;
+    if(dtr < DITTO_LOWER){//close to root, create 2 dittos
  	child1 = ialloc(dp->dev, T_DITTO);
  	child2 = ialloc(dp->dev, T_DITTO);
  	ip->child1 = child1->inum; 
  	ip->child2 = child2->inum;
-     }
-     else{
- 	if(dtr < DITTO_HIGHER){//Close enough to root, create 1 ditto
- 	    child1 = ialloc(dp->dev, T_DITTO);
- 	    ip->child1 = child1->inum; 
- 	}
-     }
+    }
+    else{
+ 	    if(dtr < DITTO_HIGHER){//Close enough to root, create 1 ditto
+ 	      child1 = ialloc(dp->dev, T_DITTO);
+ 	      ip->child1 = child1->inum; 
+ 	    }
+    }
  }
   iupdate(ip);
 
@@ -546,11 +546,11 @@ sys_mkdir(void)
 
   begin_op();
   if(argstr(0, &path) < 0 || (ip = create(path, T_DIR, 0, 0)) == 0){
-    end_op();//原end op
+    end_op();
     return -1;
   }
   iunlockput(ip);
-  end_op();//原end op
+  end_op();
   return 0;
 }
 
@@ -592,6 +592,7 @@ sys_chdir(void)
      
   if(ip->type != T_DIR){
     iunlockput(ip);
+    end_op();
     return -1;
   }
   iunlock(ip);
