@@ -11,7 +11,6 @@
 int
 exec(char *path, char **argv)
 {
-  cprintf("exec: path:%s argv[0]:%s\n", path, argv[0]);
 
   char *s, *last;
   int i, off;
@@ -107,7 +106,6 @@ exec(char *path, char **argv)
   switchuvm(curproc);
   freevm(oldpgdir);
 
-  cprintf("exec: return 0\n");
   return 0;
 
  bad:
@@ -118,6 +116,5 @@ exec(char *path, char **argv)
     end_op();
   }
 
-  cprintf("exec: return -1\n");
   return -1;
 }

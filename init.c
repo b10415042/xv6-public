@@ -32,7 +32,6 @@ main(void)
   de = ((struct dirent *)buf);
 
   while(*(de->name)){
-    printf(1, "init.c: de->name = %s\n", de->name);
 
     if((*(de->name)) == '.' ||
       (strcmp(de->name, "console") == 0) || 
