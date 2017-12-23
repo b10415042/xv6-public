@@ -365,7 +365,7 @@ duplicate(char *path, int ndittos)
     return 0;
   }
 
-//cprintf("[%d] Calling duplicate on inode with size %d.\n", ip->inum, ip->size);
+  cprintf("[%d] Calling duplicate on inode with size %d.\n", ip->inum, ip->size);
   struct inode *child1, *child2;
   begin_op();
 	if (ndittos > 0) {
@@ -382,7 +382,7 @@ duplicate(char *path, int ndittos)
 		ip->child2 = child2->inum;
 	}
 	commit();
-//cprintf("[%d] Calling ipropagate.\n", ip->inum);
+  cprintf("[%d] Calling ipropagate.\n", ip->inum);
 	ipropagate(ip);
 
 	begin_op();

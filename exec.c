@@ -11,6 +11,8 @@
 int
 exec(char *path, char **argv)
 {
+  cprintf("exec: path:%s argv[0]:%s\n", path, argv[0]);
+
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -104,6 +106,8 @@ exec(char *path, char **argv)
   curproc->tf->esp = sp;
   switchuvm(curproc);
   freevm(oldpgdir);
+
+  cprintf("exec: return 0\n");
   return 0;
 
  bad:
@@ -113,5 +117,7 @@ exec(char *path, char **argv)
     iunlockput(ip);
     end_op();
   }
+
+  cprintf("exec: return -1\n");
   return -1;
 }
