@@ -25,7 +25,7 @@ main(int argc, char *argv[])
   int i;
 
 	if (argc < 2 || (argc & 1) != 1) {
-		printf(1, "Usage: checksum ([DEV] [FILE/DIR])+\n");
+		printf(1, "Usage: pchecksum ([DEV] [FILE/DIR])+\n");
 		exit();
 	}
 

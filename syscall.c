@@ -103,8 +103,8 @@ extern int sys_unlink(void);
 extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
-extern int sys_cps(void);
 extern int sys_iopen(void);
+extern int sys_cps(void);
 extern int sys_ichecksum(void);
 extern int sys_duplicate(void);
 extern int sys_forceopen(void);
@@ -132,8 +132,8 @@ static int (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
-[SYS_cps]   sys_cps,
 [SYS_iopen]   sys_iopen,
+[SYS_cps]   sys_cps,
 [SYS_ichecksum]   sys_ichecksum,
 [SYS_duplicate]   sys_duplicate,
 [SYS_forceopen]   sys_forceopen,

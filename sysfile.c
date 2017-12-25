@@ -386,7 +386,7 @@ duplicate(char *path, int ndittos)
 	iupdate(ip);
 	iunlockput(ip);
 	end_op();
-
+  cprintf("the devnumer = %d ,  inumber = %d\n",ip->dev,ip->inum);
   return ip;
 }
 
