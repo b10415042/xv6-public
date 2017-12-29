@@ -255,8 +255,8 @@ create(char *path, short type, short major, short minor)
   uint off;
   struct inode *ip, *dp;
   char name[DIRSIZ];
-  int dtr;
-  dtr = distance_to_root(path);
+  //int dtr;
+  //dtr = distance_to_root(path);
   if((dp = nameiparent_trans(path, name)) == 0)
       return 0;
   ilock(dp);
@@ -277,10 +277,11 @@ create(char *path, short type, short major, short minor)
   ip->major = major;
   ip->minor = minor;
   ip->nlink = 1;
-
+/*
   if(type == T_DIR && dtr < DITTO_HIGHER){//Create DITTO inodes
     struct inode *child1, *child2;
     if(dtr < DITTO_LOWER){//close to root, create 2 dittos
+
  	child1 = ialloc(dp->dev, T_DITTO);
  	child2 = ialloc(dp->dev, T_DITTO);
  	ip->child1 = child1->inum; 
@@ -293,6 +294,7 @@ create(char *path, short type, short major, short minor)
  	    }
     }
  }
+ */
   iupdate(ip);
 
   if(type == T_DIR){  // Create . and .. entries.
@@ -386,7 +388,6 @@ duplicate(char *path, int ndittos)
 	iupdate(ip);
 	iunlockput(ip);
 	end_op();
-  cprintf("the devnumer = %d ,  inumber = %d\n",ip->dev,ip->inum);
   return ip;
 }
 
@@ -401,7 +402,7 @@ sys_open(void)
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
 
-  begin_op(); //maybe have problem
+  begin_op();
   if(omode & O_CREATE){
     ip = create(path, T_FILE, 1, 0);
     if(ip == 0)
@@ -454,7 +455,7 @@ sys_forceopen(void)
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
 
-  begin_op(); //maybe have problem
+  begin_op();
   if(omode & O_CREATE){
     ip = create(path, T_FILE, 1, 0);
     if(ip == 0)
@@ -543,12 +544,13 @@ sys_mkdir(void)
 {
   char *path;
   struct inode *ip;
-
+  cprintf("begin");
   begin_op();
   if(argstr(0, &path) < 0 || (ip = create(path, T_DIR, 0, 0)) == 0){
     end_op();
     return -1;
   }
+  cprintf("%d",ip->inum);
   iunlockput(ip);
   end_op();
   return 0;
@@ -665,7 +667,6 @@ sys_duplicate(void)
 	return 0;
 }
 uint ichecksum(struct inode *ip);
-
 uint
 sys_ichecksum(void)
 {
@@ -692,16 +693,13 @@ sys_ichecksum(void)
 		iunlockput(ip);
 		return -3;
 	}
-
 	cs = ichecksum(ip);
 	iunlock(ip);
-
 	f->type = FD_INODE;
 	f->ip = ip;
 	f->off = 0;
 	f->readable = !(omode & O_WRONLY);
 	f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
-
 	// close file
 	myproc()->ofile[fd] = 0;
 	fileclose(f);
